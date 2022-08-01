@@ -4,20 +4,43 @@ using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 
 namespace HKMCodeInstallerV2
 {
+   
+
     class Program
     {
         const int HWND_BROADCAST = 0xffff;
         const uint WM_SETTINGCHANGE = 0x001a;
+        const string hkmArchive = @"HkmCode/archive/refs/tags/V0.1.zip";
+        private static readonly string hkmCode = "HkmCode-0.1.zip";
+        private static  string version = ComputerHash(hkmArchive);
+        private static string tmpfolder = Path.Combine(Path.GetTempPath(), version);
+        private static readonly string hkmCodeTmpFile = Path.Combine(tmpfolder, hkmCode);
+        private static List<string> wrkfolders = new List<string>();
+        private static string configFile = ".hkmcode";
 
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         static extern bool SendNotifyMessage(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam);
 
+        private static string ComputerHash(string rawData)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+                StringBuilder builder = new StringBuilder();
+                for(int i = 0; i<bytes.Length; i++)
+                {
+                    builder.Append(bytes[i].ToString("x2"));
+                }
+                return builder.ToString();
 
+            }
+        }
         static void Main(string[] args)
         {
 
@@ -49,18 +72,22 @@ namespace HKMCodeInstallerV2
 
         static void CRTFolWorkers()
         {
-            foreach (string user in GetUserAccounts())
-            {
-                string newPath = string.Format(@"C:\Users\{0}\AppData\Roaming\HKMCode\php", user);
-                string DefaultPath = string.Format(@"C:\Users\{0}\AppData\Roaming\HKMCode\php", "Default");
-                if (!isDirExist(newPath)) Directory.CreateDirectory(newPath);
-                if (!isDirExist(DefaultPath)) Directory.CreateDirectory(DefaultPath);
+            wrkfolders.Add(string.Format(@"C:\Users\{0}\AppData\Roaming\HKMCode\php", "Default"));
+            foreach (string user in GetUserAccounts()) wrkfolders.Add(string.Format(@"C:\Users\{0}\AppData\Roaming\HKMCode\php", user));
+            wrkfolders.ForEach(Crwkfolders);
 
-                Console.WriteLine(user);
-            }
-            Console.ReadLine();
+            CreatingHKMCodePath();
         }
 
+        static void Crwkfolders(string path)
+        {
+            if (!isDirExist(path)) Directory.CreateDirectory(path);
+            string fileConfHkm = Path.Combine(path, configFile);
+            if (!File.Exists(fileConfHkm)) File.Create(fileConfHkm);
+
+            if (File.Exists(hkmCodeTmpFile))Helpers.ZipHelpers.Unzip(hkmCodeTmpFile, path);
+            
+        }
 
         static void CreatingHKMCodePath()
         {
@@ -160,21 +187,34 @@ namespace HKMCodeInstallerV2
         static void RunAsync()
         {
             List<string> filesList = new List<string>();
-            string format = "zip";
-            string fileName = "/sample." + format.ToLower();
-            filesList.Add(fileName);
+            filesList.Add(hkmArchive);
 
+            if (isDirExist(tmpfolder))
+            {
+                if (File.Exists(hkmCodeTmpFile)) CRTFolWorkers();
+                else DownloadingTask.DownloadFile(filesList, "https://github.com/", "", "", tmpfolder);
+            }
+            else
+            {
+                Directory.CreateDirectory(tmpfolder);
+                DownloadingTask.DownloadFile(filesList, "https://github.com/", "", "", tmpfolder);
+                CRTFolWorkers();
 
-            DownloadingTask.DownloadFile(filesList, "http://localhost", "", "", @"C:\");
-            //Console.WriteLine("Done");
+            }
             Console.ReadLine();
+
+
+            
 
 
 
         }
 
 
-    }
+
+
+
+}
 }
 
 
